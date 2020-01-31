@@ -1,0 +1,220 @@
+<htmL>
+<head>
+  <title>Coding Challange</title>
+  <style type="text/css">
+    #app {
+      font-family: "Avenir", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      color: #2c3e50;
+      margin-top: 60px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .blue, .green {
+      position: relative;
+      width: 500px;
+      margin: 0 20px;
+    }
+
+    .blue .autocomplete-results, .green .autocomplete-results {
+      padding: 0;
+      margin: 0;
+      border: 1px solid #eeeeee;
+      max-height: 500px;
+      overflow: auto;
+      width: 100%;
+    }
+    .blue .autocomplete-input, .green .autocomplete-input {
+      padding: 8px;
+      width: 500px;
+      position: relative;
+    }
+
+    .blue .autocomplete-result, .green .autocomplete-result {
+      list-style: none;
+      text-align: left;
+      padding: 4px 2px;
+      cursor: pointer;
+    }
+    .blue .result-description span.highlight {
+      background: #f31414;
+      color: #f3f3f3;
+      padding: 0 4px;
+    }
+    .green .result-description span.highlight {
+      background: #f5f79a;
+      color: #000;
+      padding: 0 4px;
+    }
+    .autocomplete-results li {
+      padding: 6px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .blue .autocomplete-results li span.tag, .green .autocomplete-results li span.tag {
+      font-size: 12px;
+      line-height: 12px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      margin-top: 5px;
+      display: inline-block;
+      color: #000;
+      margin-right: 5px;
+    }
+    .blue span.tag {
+      background: #eee;
+    }
+    .green span.tag {
+      background: #97ddff ;
+    }
+
+    .blue .autocomplete-result.is-active,
+    .blue .autocomplete-result:hover {
+      background-color: #2599f5;
+      color: white;
+    }
+
+    .green .autocomplete-result.is-active,
+    .green .autocomplete-result:hover {
+      background-color: #539010;
+      color: white;
+    }
+
+    .result-title {
+      font-weight: 600;
+    }
+    .result-description {
+      font-size: 12px;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <template>
+      <autocomplete skin="blue" />
+    </template>
+    <template>
+      <autocomplete skin="green" />
+    </template>
+  </div>
+
+  <script type="text/x-template" id="autocomplete">
+    <d v-bind:class="[skin]">
+      <label>{{ skin | capitalize }}</label>
+      <input type="text" class="autocomplete-input" @input="onChange" v-model="search" @keyup.down="onArrowDown" @keyup.up="onArrowUp" 
+      @keyup.enter="onEnter" />
+      <ul id="autocomplete-results" v-show="isOpen" class="autocomplete-results">
+        <li class="loading" v-if="isLoading">
+          Loading results...
+        </li>
+        <li v-else v-for="(result, i) in results" :key="i" @click="setResult(result)" class="autocomplete-result" 
+          :class="{ 'is-active': i === arrowCounter }">
+          <div class="result-title">{{ result.name }}</div>
+          <p class="result-description" v-html="$options.filters.highlight(result.description, search)"></p>
+          <span class="tag" v-for="(tag, t) in result.tags" :key="tag">{{ tag }}</span>
+        </li>
+      </ul>
+    </div>
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.0"></script>
+  <script>
+    const Autocomplete = Vue.extend({
+      name: "autocomplete",
+      template: "#autocomplete",
+      props: {
+        skin: String
+      },
+      data() {
+        return {
+          isOpen: false,
+          results: [],
+          search: "",
+          isLoading: false,
+          arrowCounter: 0,
+          items: []
+        };
+      },
+      filters: {
+        highlight(description, kw){
+          const index = description.toLowerCase().indexOf(kw.toLowerCase());
+          if(index > -1) {
+            description = `${description.substring(0,index)} <span class="highlight">${description.substring(index,index+kw.length)}</span> ${description.substring(index + kw.length)}`;
+
+          }
+          return description;
+
+        },
+        capitalize(value) {
+          if (!value) return ''
+          value = value.toString()
+          return value.charAt(0).toUpperCase() + value.slice(1)
+        }
+      },
+      methods: {
+        onChange() {
+            this.isOpen = true;
+            this.isLoading = true;
+            if(this.search.length >= 3)
+              this.fetchResults();
+        },
+        async fetchResults() {
+          const res = await fetch("https://coding-challenge.echoandapex.com/locations?q="+this.search.toLowerCase())
+          const json = await res.json();
+          console.log(json);
+          this.isLoading = false;
+          this.results = json.predictions;
+
+        },
+        setResult(result) {
+          this.search = result.name;
+          this.isOpen = false;
+        },
+        onArrowDown(evt) {
+          if (this.arrowCounter < this.results.length) {
+            this.arrowCounter = this.arrowCounter + 1;
+          }
+        },
+        onArrowUp() {
+          if (this.arrowCounter > 0) {
+            this.arrowCounter = this.arrowCounter - 1;
+          }
+        },
+        onEnter() {
+          this.search = this.results[this.arrowCounter].name;
+          this.isOpen = false;
+          this.arrowCounter = -1;
+        },
+        handleClickOutside(evt) {
+          if (!this.$el.contains(evt.target)) {
+            this.isOpen = false;
+            this.arrowCounter = -1;
+          }
+        }
+      },
+      watch: {
+        items: function(val, oldValue) {
+          if (val.length !== oldValue.length) {
+            this.results = val;
+            this.isLoading = false;
+          }
+        }
+      },
+      mounted() {
+        document.addEventListener("click", this.handleClickOutside);
+      },
+      destroyed() {
+        document.removeEventListener("click", this.handleClickOutside);
+      }
+    });
+
+    new Vue({
+      el: "#app",
+      name: "app",
+      components: { Autocomplete }
+    });
+  </script>
+</body>
+</htmL>
